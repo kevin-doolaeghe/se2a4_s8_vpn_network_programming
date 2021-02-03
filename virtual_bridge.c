@@ -8,70 +8,22 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <netdb.h>
-#include <netinet/tcp.h>
+#include <poll.h>
 
 #include "libnet.h"
 
 /** Quelques constantes **/
-#define SERVICE "http"
 #define MAX_LIGNE 20
 
 /** Variables globales **/
 
 /** Fonctions **/
 
-/* Fonction d'initialisation du serveur */
-int initialisationServeur(char *service,int connexions){
-	struct addrinfo precisions,*resultat,*origine;
-	int statut;
-	int s;
-
-	/* Construction de la structure adresse */
-	memset(&precisions,0,sizeof precisions);
-	precisions.ai_family=AF_UNSPEC;
-	precisions.ai_socktype=SOCK_STREAM;
-	precisions.ai_flags=AI_PASSIVE;
-	statut=getaddrinfo(NULL,service,&precisions,&origine);
-	if(statut<0){ perror("initialisationServeur.getaddrinfo"); exit(EXIT_FAILURE); }
-
-	struct addrinfo *p;
-	for(p=origine,resultat=origine;p!=NULL;p=p->ai_next)
-		if(p->ai_family==AF_INET6){ resultat=p; break; }
-
-	/* Creation d'une socket */
-	s=socket(resultat->ai_family,resultat->ai_socktype,resultat->ai_protocol);
-	if(s<0){ perror("initialisationServeur.socket"); exit(EXIT_FAILURE); }
-
-	/* Options utiles */
-	int vrai=1;
-	if(setsockopt(s,SOL_SOCKET,SO_REUSEADDR,&vrai,sizeof(vrai))<0){
-		perror("initialisationServeur.setsockopt (REUSEADDR)");
-		exit(EXIT_FAILURE);
-	}
-
-	if(setsockopt(s,IPPROTO_TCP,TCP_NODELAY,&vrai,sizeof(vrai))<0){
-		perror("initialisationServeur.setsockopt (NODELAY)");
-		exit(EXIT_FAILURE);
-	}
-
-	/* Specification de l'adresse de la socket */
-	statut=bind(s,resultat->ai_addr,resultat->ai_addrlen);
-	if(statut<0) return -1;
-
-	/* Liberation de la structure d'informations */
-	freeaddrinfo(origine);
-
-	/* Taille de la queue d'attente */
-	statut=listen(s,connexions);
-	if(statut<0) return -1;
-
-	return s;
-}
-
 /* Fonction boucle serveur */
 int boucleServeur(int ecoute,int (*traitement)(int)){
 	int dialogue;
+	int i;
+	int nb_con=0;
 
 	while(1){
 		/* Attente d'une connexion */
@@ -80,6 +32,41 @@ int boucleServeur(int ecoute,int (*traitement)(int)){
 		/* Passage de la socket de dialogue a la fonction de traitement */
 		if(traitement(dialogue)<0){ shutdown(ecoute,SHUT_RDWR); return 0;}
 	}
+
+	struct pollfd descripteurs[MAX_CONNEXIONS];
+	descripteurs[0].fd=ecoute;
+	descripteurs[0].events=POLLIN;
+	for(i=1;i<MAX_CONNEXIONS;i++){
+		descripteurs[i].fd=0;
+		descripteurs[i].events=POLLIN;
+	}
+
+	while(nb_con>=0){
+		int nb=poll(descripteurs,MAX_CONNEXIONS,-1);
+		if(nb<0){ perror("main.poll"); exit(EXIT_FAILURE); }
+		if((descripteurs[0].revents&POLLIN)!=0){
+			// Récupère le nouveau socket
+			int fd;
+			if((fd=accept(ecoute,NULL,NULL))<0) return -1;
+
+			// Sauvegarde du descripteur du socket si la connexion réussit
+			nb_con++;
+			descripteurs[nb_con].fd=fd;
+ 		}
+		for(i=1;i<nb_con;i++){
+			if((descripteurs[i].revents&POLLIN)!=0){
+				// Action à effectuer pour le socket correspondant
+
+			}
+		}
+	}
+
+	for(i=1;i<MAX_CONNEXIONS;i++){
+		shutdown(descripteurs[i].fd,SHUT_RDWR);
+	}
+
+	/* On termine la connexion */
+	shutdown(ecoute,SHUT_RDWR);
 }
 
 /* Fonction gestion client */
@@ -111,7 +98,7 @@ int main(int argc,char *argv[]){
 	#endif
 
 	// Initialisation du serveur
-	int s=initialisationServeur(SERVICE,MAX_CONNEXIONS);
+	int s=initialisationServeur(service,MAX_CONNEXIONS);
 
 	// Traitement des connexions et des messages
 	boucleServeur(s,gestionClient);

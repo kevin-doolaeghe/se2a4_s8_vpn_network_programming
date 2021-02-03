@@ -1,4 +1,4 @@
-/** fichier libnet.h **/
+/** Fichier libnet.h **/
 
 /******************************************************************/
 /** Ce fichier decrit les structures et les constantes utilisees **/
@@ -8,7 +8,6 @@
 /**** Constantes ****/
 
 /** Nombre maximum de connexions tamponnees pour le serveur **/
-
 #define MAX_CONNEXIONS	32
 
 /**** Fonctions ****/
