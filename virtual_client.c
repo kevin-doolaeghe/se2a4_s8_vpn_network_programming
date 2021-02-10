@@ -14,7 +14,8 @@
 #include "libnet.h"
 
 /** Quelques constantes **/
-#define MAX_TAMPON 1024
+#define MAX_TAMPON 2048
+#define MAX_NOM_INTERFACE 16
 #define NOM_INTERFACE "tap0"
 
 /** Variables globales */
@@ -30,18 +31,31 @@ void communicationServeur(int s,int fd){
 	descripteurs[1].fd=fd; // File descriptor de l'interface virrtuelle
 	descripteurs[1].events=POLLIN;
 	while(1){
-		char tampon[MAX_TAMPON];
+		unsigned char tampon[MAX_TAMPON];
+		unsigned short taille;
+		int ret;
 		int nb=poll(descripteurs,2,-1);
 		if(nb<0){ perror("main.poll"); exit(EXIT_FAILURE); }
 		if((descripteurs[0].revents&POLLIN)!=0){
 			// Interface réseau
-			int taille=read(s,tampon,MAX_TAMPON);
-			if(taille<=0) break;
-			write(1,tampon,taille);
+			ret=read_fixed(s,(unsigned char *)&taille,sizeof(taille));
+			if(ret<sizeof(taille)) break;
+			ret=read_fixed(s,tampon,taille);
+			if(ret!=taille) break;
+			write(fd,tampon,taille);
  		}
 		if((descripteurs[1].revents&POLLIN)!=0){
 			// Interface virtuelle
-
+			ret=read(fd,tampon,MAX_TAMPON);
+			unsigned short tmp=ret;
+			unsigned char pb=0;
+			ret=write(s,&tmp,sizeof(tmp));
+			if(ret!=sizeof(tmp)) pb=1;
+			ret=write(s,tampon,tmp);
+			if(ret!=tmp) pb=1;
+			if(pb==1){
+				break;
+			}
 		}
 	}
 
@@ -65,13 +79,20 @@ int main(int argc,char *argv[]){
 	// Connexion au serveur
 	int s=connexionServeur(serveur,service);
 	if(s<0){ fprintf(stderr,"Erreur de connexion au serveur\n"); exit(EXIT_FAILURE); }
+	#ifdef DEBUG
+	fprintf(stdout,"Connexion au serveur effectuée\n");
+	#endif
 
 	// Ouverture de l'interface reseau
-	int fd=creationInterfaceVirtuelle(NOM_INTERFACE);
+  	char interface[MAX_NOM_INTERFACE]=NOM_INTERFACE;
+	int fd=creationInterfaceVirtuelle(interface);
 	if(fd<0){
 		fprintf(stderr,"Erreur de la création d'une interface virtuelle\n");
 		exit(EXIT_FAILURE);
 	}
+	#ifdef DEBUG
+	fprintf(stdout,"Interface virtuelle créée\n");
+	#endif
 
 	// Communication avec le serveur
 	communicationServeur(s,fd);
