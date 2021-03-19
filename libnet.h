@@ -8,11 +8,11 @@
 /**** Constantes ****/
 
 /** Nombre maximum de connexions tamponnees pour le serveur **/
-#define MAX_CONNEXIONS	32
+#define MAX_CONNEXIONS 32
 
 /**** Fonctions ****/
 
-int connexionServeur(char *hote,char *service);
-int initialisationServeur(char *service,int connexions);
-int read_fixed(int descripteur,unsigned char *array,int size);
-int creationInterfaceVirtuelle(char *nom);
+int connexionServeur(char* hote, char* service);
+int initialisationServeur(char* service, int connexions);
+int read_fixed(int descripteur, unsigned char* array, int size);
+int creationInterfaceVirtuelle(char* nom);
